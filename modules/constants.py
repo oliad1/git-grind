@@ -1,4 +1,5 @@
 GITHUB_BASE_URL = "https://api.github.com/graphql"
+GITHUB_URL = "https://github.com/"
 
 def getAuthHeader (gh_token: str):
     return { 'Authorization': 'bearer '+gh_token }
@@ -13,6 +14,7 @@ query ($login: String!) {
     bio
     pronouns
     url
+    name
     status {
       emoji
       message
@@ -21,6 +23,12 @@ query ($login: String!) {
     contributionsCollection {
       totalCommitContributions
       totalRepositoryContributions
+      pullRequestContributions {
+        totalCount
+      }
+      issueContributions {
+        totalCount
+      }
     }
   }
 }

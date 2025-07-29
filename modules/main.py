@@ -80,7 +80,52 @@ def main():
         response = requests.post(url=const.GITHUB_BASE_URL, json=query, headers=headers)
         status = response.status_code
         if status == 200:
-            await interaction.response.send_message(f"${response.json()}")
+            userData = (response.json())["data"]["user"]
+            name = userData["name"]
+            handle = userData["login"]
+            avatarUrl = userData["avatarUrl"]
+            contributionData = userData["contributionsCollection"]
+            totalCommits = contributionData["totalCommitContributions"]
+            totalRepos = contributionData["totalRepositoryContributions"]
+            totalPRs = contributionData["pullRequestContributions"]["totalCount"]
+            totalIssues = contributionData["issueContributions"]["totalCount"]
+            pronouns = userData["pronouns"]
+            bio = userData["bio"]
+
+            desc = ""
+            stats = []
+
+            if totalCommits:
+                stats.append(f":gear: **Commits: {totalCommits}**")
+
+            if totalRepos:
+                stats.append(f":cd: **Repositories: {totalRepos}**")
+
+            if totalPRs:
+                stats.append(f":herb: **PRs: {totalRepos}**")
+
+            if totalIssues:
+                stats.append(f":warning: **Issues: {totalIssues}**")
+
+            if pronouns:
+                name += ' ('+pronouns+')'
+
+            if handle:
+                desc += f'[{handle}]({const.GITHUB_URL}{handle})'+'\n'
+            
+            if bio:
+                desc += bio+'\n'
+
+            if stats:
+                desc += '\n'+"\n".join(stats)
+
+            embed = discord.Embed(
+                title=name,
+                description=desc,
+                color=discord.Color.blue()
+                )
+            embed.set_image(url=avatarUrl)
+            await interaction.response.send_message(embed=embed)
 
     bot.run(bot_token, log_handler=handler, log_level=logging.DEBUG)
 
