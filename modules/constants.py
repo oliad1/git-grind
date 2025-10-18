@@ -41,3 +41,5 @@ def getUser (username: str):
             "login": username
         }
     }
+
+emoji = ["first", "second", "third"]
