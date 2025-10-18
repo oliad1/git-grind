@@ -53,7 +53,8 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
     sql = """CREATE TABLE IF NOT EXISTS server_users (
         guild_id INTEGER NOT NULL,
         username TEXT NOT NULL,
-        FOREIGN KEY (username) REFERENCES users(username)
+        FOREIGN KEY (username) REFERENCES users(username),
+        PRIMARY KEY (guild_id, username)
     )
     """
 
@@ -192,9 +193,18 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             sql = f"""
             INSERT INTO users (username, commits, repos, prs, issues, pronouns, bio, last_fetched)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """
+            ON CONFLICT (username) DO UPDATE SET
+                username = excluded.username,
+                commits = excluded.commits,
+                repos = excluded.repos,
+                prs = excluded.prs,
+                issues = excluded.issues,
+                pronouns = excluded.pronouns,
+                bio = excluded.bio,
+                last_fetched = excluded.last_fetched
+           """
 
-            res = cursor.execute(sql, (username, totalCommits, totalRepos, totalPRs, totalIssues, pronouns, bio, datetime.datetime.now()))
+            _ = cursor.execute(sql, (username, totalCommits, totalRepos, totalPRs, totalIssues, pronouns, bio, datetime.datetime.now()))
 
             conn.commit()
 
@@ -203,13 +213,9 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             VALUES (?, ?) 
             """
 
-            res = cursor.execute(sql, (GUILD_ID.id, username))
+            _ = cursor.execute(sql, (GUILD_ID.id, username))
 
             conn.commit()
-
-            for row in res.fetchall():
-                for item in row:
-                    print(item+" ")
 
             embed = discord.Embed(
                 title="Added "+name,
@@ -227,6 +233,30 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             embed.set_thumbnail(url=avatarUrl)
             await interaction.response.send_message(embed=embed)
 
+    @bot.tree.command(name="remove", description="Remove a user to your server", guild=GUILD_ID)
+    async def removeUser(interaction: discord.Interaction, username: str):
+        # Check DB to see that user exists
+        # Only delete server_users row, keep general user cache
+        sql = f"""
+        DELETE FROM server_users
+        WHERE username = ?
+        """
+
+        _ = cursor.execute(sql, (username,))
+
+        conn.commit()
+
+        embed = discord.Embed(
+            title="Deleted "+username,
+            description="",
+            color=discord.Color.blue()
+        )
+
+        embed.add_field(name="", value=(
+            ""
+        ), inline=False)
+
+        await interaction.response.send_message(embed=embed)
 
     @bot.tree.command(name="leaderboard", description="Rank github stats with friends", guild=GUILD_ID)
     async def rankUsers(interaction: discord.Interaction): # Add param for comparing commits vs PRs vs issues
@@ -278,6 +308,8 @@ if __name__ == "__main__":
     conn = sqlite3.connect(r'test.db')
 
     cursor = conn.cursor()
+
+    cursor.execute("PRAGMA foreign_keys = ON;")
 
     main(cursor, conn)
 
