@@ -1,18 +1,25 @@
+"""
+Main script to run the discord bot
+"""
+
+import logging
+import os
+import sqlite3
+import datetime
+import requests
+from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from discord import app_commands
-import logging
-from dotenv import load_dotenv
-import os
-import requests
 from modules import constants as const
-import sqlite3
-import datetime
 
 def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
-    envRes = load_dotenv()
+    """
+    Main function to run the bot (pylint...)
+    """
+    env_res = load_dotenv()
 
-    if not envRes:
+    if not env_res:
         print("Error: Could not load .env file")
         return
 
@@ -30,7 +37,7 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
     local_server_id = os.getenv("LOCAL_SERVER_ID")
 
-    # user (username, commits, numRepos, PRs, issues, pronouns, bio, userStatus, lastFetched)
+    # user (username, commits, numRepos, PRs, issues, pronouns, bio, user_status, lastFetched)
     # server_users (guild_id/server_id, user_id)
     sql = """CREATE TABLE IF NOT EXISTS users (
         username TEXT NOT NULL,
@@ -71,17 +78,17 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
     @bot.event
     async def on_ready():
-        print(f"{bot.user.name} bot is ready");
+        print(f"{bot.user.name} bot is ready")
 
         try:
             guild = discord.Object(id=str(local_server_id))
             synced = await bot.tree.sync(guild=guild)
             print(f"Synced {len(synced)} commands to guild {guild.id}")
 
-        except Exception as e:
+        except discord.errors.HTTPException as e:
             print(f"Error syncing commands: {e}")
 
-    GUILD_ID = discord.Object(id=int(local_server_id))
+    guild_id = discord.Object(id=int(local_server_id))
 
     @bot.event
     async def on_member_join(member):
@@ -96,33 +103,27 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
         await bot.process_commands(message)
 
-    @bot.command()
-    async def poll(ctx, *, question):
-        embed = discord.Embed(title="Leaderboard", description=question)
-        poll_message = await ctx.send(embed=embed)
-        #await poll_message.add_reaction("")
-
-    @bot.tree.command(name="user", description="Fetch information about a user", guild=GUILD_ID)
-    async def searchUser(interaction: discord.Interaction, username: str):
-        query = const.getUser(username)
-        headers = const.getAuthHeader(gh_token)
-        response = requests.post(url=const.GITHUB_BASE_URL, json=query, headers=headers)
+    @bot.tree.command(name="user", description="Fetch information about a user", guild=guild_id)
+    async def search_user(interaction: discord.Interaction, username: str):
+        query = const.get_user(username)
+        headers = const.get_auth_header(gh_token)
+        response = requests.post(url=const.GITHUB_BASE_URL, json=query, headers=headers, timeout=10)
         status = response.status_code
         if status != 200:
             await interaction.response.send_message("Failed to get user info for "+username)
         if status == 200:
-            userData = (response.json())["data"]["user"]
-            name = userData["name"]
-            handle = userData["login"]
-            avatarUrl = userData["avatarUrl"]
-            contributionData = userData["contributionsCollection"]
-            totalCommits = contributionData["totalCommitContributions"]
-            totalRepos = contributionData["totalRepositoryContributions"]
-            totalPRs = contributionData["pullRequestContributions"]["totalCount"]
-            totalIssues = contributionData["issueContributions"]["totalCount"]
-            pronouns = userData["pronouns"]
-            bio = userData["bio"]
-            userStatus = userData["status"]
+            user_data = (response.json())["data"]["user"]
+            name = user_data["name"]
+            handle = user_data["login"]
+            avatar_url = user_data["avatarUrl"]
+            contribution_data = user_data["contributionsCollection"]
+            total_commits = contribution_data["totalCommitContributions"]
+            total_repos = contribution_data["totalRepositoryContributions"]
+            total_prs = contribution_data["pullRequestContributions"]["totalCount"]
+            total_issues = contribution_data["issueContributions"]["totalCount"]
+            pronouns = user_data["pronouns"]
+            bio = user_data["bio"]
+            user_status = user_data["status"]
 
             desc = ""
 
@@ -131,12 +132,12 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
             if handle:
                 desc += f'[{handle}]({const.GITHUB_URL}{handle})'+'\n'
-            
+
             if bio:
                 desc += bio+'\n'
 
-            if userStatus:
-                desc += '> '+userStatus["emoji"]+' '+userStatus["message"]+'\n'
+            if user_status:
+                desc += '> '+user_status["emoji"]+' '+user_status["message"]+'\n'
 
             embed = discord.Embed(
                 title=name,
@@ -145,36 +146,36 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             )
 
             embed.add_field(name="", value=(
-                f"**Commits:** {totalCommits}\n"
-                f"**Repositories:** {totalRepos}\n"
-                f"**PRs:** {totalPRs}\n"
-                f"**Issues:** {totalIssues}"
+                f"**Commits:** {total_commits}\n"
+                f"**Repositories:** {total_repos}\n"
+                f"**PRs:** {total_prs}\n"
+                f"**Issues:** {total_issues}"
             ), inline=False)
 
-            embed.set_thumbnail(url=avatarUrl)
+            embed.set_thumbnail(url=avatar_url)
             await interaction.response.send_message(embed=embed)
 
-    @bot.tree.command(name="add", description="Add a user to your server", guild=GUILD_ID)
-    async def addUser(interaction: discord.Interaction, username: str):
-        query = const.getUser(username)
-        headers = const.getAuthHeader(gh_token)
-        response = requests.post(url=const.GITHUB_BASE_URL, json=query, headers=headers)
+    @bot.tree.command(name="add", description="Add a user to your server", guild=guild_id)
+    async def add_user(interaction: discord.Interaction, username: str):
+        query = const.get_user(username)
+        headers = const.get_auth_header(gh_token)
+        response = requests.post(url=const.GITHUB_BASE_URL, json=query, headers=headers, timeout=10)
         status = response.status_code
         if status != 200:
             await interaction.response.send_message("Failed to get user info for "+username)
         if status == 200:
-            userData = (response.json())["data"]["user"]
-            name = userData["name"]
-            handle = userData["login"]
-            avatarUrl = userData["avatarUrl"]
-            contributionData = userData["contributionsCollection"]
-            totalCommits = contributionData["totalCommitContributions"]
-            totalRepos = contributionData["totalRepositoryContributions"]
-            totalPRs = contributionData["pullRequestContributions"]["totalCount"]
-            totalIssues = contributionData["issueContributions"]["totalCount"]
-            pronouns = userData["pronouns"]
-            bio = userData["bio"]
-            userStatus = userData["status"]
+            user_data = (response.json())["data"]["user"]
+            name = user_data["name"]
+            handle = user_data["login"]
+            avatar_url = user_data["avatarUrl"]
+            contribution_data = user_data["contributionsCollection"]
+            total_commits = contribution_data["totalCommitContributions"]
+            total_repos = contribution_data["totalRepositoryContributions"]
+            total_prs = contribution_data["pullRequestContributions"]["totalCount"]
+            total_issues = contribution_data["issueContributions"]["totalCount"]
+            pronouns = user_data["pronouns"]
+            bio = user_data["bio"]
+            user_status = user_data["status"]
 
             desc = ""
 
@@ -183,14 +184,14 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
             if handle:
                 desc += f'[{handle}]({const.GITHUB_URL}{handle})'+'\n'
-            
+
             if bio:
                 desc += bio+'\n'
 
-            if userStatus:
-                desc += '> '+userStatus["emoji"]+' '+userStatus["message"]+'\n'
+            if user_status:
+                desc += '> '+user_status["emoji"]+' '+user_status["message"]+'\n'
 
-            sql = f"""
+            sql = """
             INSERT INTO users (username, commits, repos, prs, issues, pronouns, bio, last_fetched)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (username) DO UPDATE SET
@@ -204,7 +205,7 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
                 last_fetched = excluded.last_fetched
            """
 
-            _ = cursor.execute(sql, (username, totalCommits, totalRepos, totalPRs, totalIssues, pronouns, bio, datetime.datetime.now()))
+            _ = cursor.execute(sql, (username, total_commits, total_repos, total_prs, total_issues, pronouns, bio, datetime.datetime.now()))
 
             conn.commit()
 
@@ -213,7 +214,7 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             VALUES (?, ?) 
             """
 
-            _ = cursor.execute(sql, (GUILD_ID.id, username))
+            _ = cursor.execute(sql, (guild_id.id, username))
 
             conn.commit()
 
@@ -224,20 +225,20 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
             )
 
             embed.add_field(name="", value=(
-                f"**Commits:** {totalCommits}\n"
-                f"**Repositories:** {totalRepos}\n"
-                f"**PRs:** {totalPRs}\n"
-                f"**Issues:** {totalIssues}"
+                f"**Commits:** {total_commits}\n"
+                f"**Repositories:** {total_repos}\n"
+                f"**PRs:** {total_prs}\n"
+                f"**Issues:** {total_issues}"
             ), inline=False)
 
-            embed.set_thumbnail(url=avatarUrl)
+            embed.set_thumbnail(url=avatar_url)
             await interaction.response.send_message(embed=embed)
 
-    @bot.tree.command(name="remove", description="Remove a user to your server", guild=GUILD_ID)
-    async def removeUser(interaction: discord.Interaction, username: str):
+    @bot.tree.command(name="remove", description="Remove a user to your server", guild=guild_id)
+    async def remove_user(interaction: discord.Interaction, username: str):
         # Check DB to see that user exists
         # Only delete server_users row, keep general user cache
-        sql = f"""
+        sql = """
         DELETE FROM server_users
         WHERE username = ?
         """
@@ -258,22 +259,28 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
         await interaction.response.send_message(embed=embed)
 
-    @bot.tree.command(name="leaderboard", description="Rank github stats with friends", guild=GUILD_ID)
-    async def rankUsers(interaction: discord.Interaction): # Add param for comparing commits vs PRs vs issues
+    @bot.tree.command(name="leaderboard", description="Rank github stats with friends", guild=guild_id)
+    @app_commands.choices(stat=[
+        app_commands.Choice(name="Commits", value="commits"),
+        app_commands.Choice(name="PRs", value="prs"),
+        app_commands.Choice(name="Repos", value="repos"),
+        app_commands.Choice(name="Issues", value="issues"),
+    ])
+    async def rank_users(interaction: discord.Interaction, stat: app_commands.Choice[str]): # Add param for comparing commits vs PRs vs issues
         # Read from SQLite file for this GUILD's
         # If commit store request was < 10 min ago then just use cache
         # Make an github API request for others, and save them to sqlite
         # Return sql in descending order
         # Users should be one to many (one user can be in multiple servers
-        # user (username, commits, numRepos, PRs, issues, pronouns, bio, userStatus, lastFetched)
+        # user (username, commits, numRepos, PRs, issues, pronouns, bio, user_status, lastFetched)
         # server_users (guild_id/server_id, user_id)
         sql = f"""
-        SELECT users.username, users.commits
+        SELECT users.username, users.{stat.value}
         FROM users
         INNER JOIN server_users
         ON users.username = server_users.username
-        WHERE server_users.guild_id = '{GUILD_ID.id}'
-        ORDER BY users.commits DESC
+        WHERE server_users.guild_id = '{guild_id.id}'
+        ORDER BY users.{stat.value} DESC
         """
 
         res = cursor.execute(sql)
@@ -286,12 +293,12 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
 
         for i, row in enumerate(rows):
             if i > 2:
-                leaderboard += f"**{i+1}.** [**{row[0]}**]({const.GITHUB_URL}{row[0]}) - **{row[1]}\u200b** commits\n"
+                leaderboard += f"**{i+1}.** [**{row[0]}**]({const.GITHUB_URL}{row[0]}) - **{row[1]}\u200b** {stat.value}\n"
             else:
-                leaderboard += f"**:{const.emoji[i]}_place:** [**{row[0]}**]({const.GITHUB_URL}{row[0]}) - **{row[1]}** commits\n"
+                leaderboard += f"**:{const.emoji[i]}_place:** [**{row[0]}**]({const.GITHUB_URL}{row[0]}) - **{row[1]}** {stat.value}\n"
 
         embed = discord.Embed(
-            title="Alltime Leaderboard (Commits)",
+            title=f"Alltime Leaderboard ({stat.name})",
             description="",
             color=discord.Color.blue()
         )
@@ -305,12 +312,12 @@ def main(cursor: sqlite3.Cursor, conn: sqlite3.Connection):
     bot.run(bot_token, log_handler=handler, log_level=logging.DEBUG)
 
 if __name__ == "__main__":
-    conn = sqlite3.connect(r'test.db')
+    db_conn = sqlite3.connect(r'test.db')
 
-    cursor = conn.cursor()
+    db_cursor = db_conn.cursor()
 
-    cursor.execute("PRAGMA foreign_keys = ON;")
+    db_cursor.execute("PRAGMA foreign_keys = ON;")
 
-    main(cursor, conn)
+    main(db_cursor, db_conn)
 
-    conn.close()
+    db_conn.close()

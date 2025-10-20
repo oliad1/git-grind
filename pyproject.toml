@@ -65,7 +65,6 @@ disable = [
     "use-symbolic-message-instead",
     "use-implicit-booleaness-not-comparison-to-string",
     "use-implicit-booleaness-not-comparison-to-zero",
-    # WARG
     # Ignore TODOs
     "fixme",
     # Pylint cannot find modules

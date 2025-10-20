@@ -22,7 +22,7 @@ python -m modules.main
 - /user [username]
 - /add [username]
 - /remove [username]
-- /leaderboard
+- /leaderboard [stat]
 
 ## Contributing
 To contribute to this project make a new branch, open a PR. Make sure you have a 10.00/10.0 when running `pylint .`
